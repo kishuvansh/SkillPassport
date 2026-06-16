@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 /* ---- Icons (minimal line set, lucide-style) ---- */
 export const ICON_PATHS: Record<string, string> = {
@@ -70,11 +69,13 @@ interface ButtonProps {
   iconRight?: string;
   className?: string;
   style?: React.CSSProperties;
+  disabled?: boolean;
+  type?: "button" | "submit" | "reset";
 }
 
-export function Button({ children, variant = "primary", size = "md", onClick, icon, iconRight, className = "", style = {} }: ButtonProps) {
+export function Button({ children, variant = "primary", size = "md", onClick, icon, iconRight, className = "", style = {}, disabled, type = "button" }: ButtonProps) {
   return (
-    <button className={`btn btn-${variant} btn-${size} ${className}`} onClick={onClick} style={style}>
+    <button type={type} disabled={disabled} className={`btn btn-${variant} btn-${size} ${className}`} onClick={onClick} style={style}>
       {icon && <Icon name={icon} size={size === "lg" ? 18 : 16} />}
       <span>{children}</span>
       {iconRight && <Icon name={iconRight} size={size === "lg" ? 18 : 16} />}
@@ -259,42 +260,6 @@ export function Logo({ size = 28, onClick }: LogoProps) {
       </div>
       <span className="logo-text">CareerSim<span style={{ color: "var(--accent)" }}> AI</span></span>
     </div>
-  );
-}
-
-/* ---- App nav bar ---- */
-export function AppNav() {
-  const pathname = usePathname();
-  const items = [
-    { id: "dashboard", label: "Dashboard", icon: "grid" },
-    { id: "careers", label: "Careers", icon: "compass" },
-    { id: "mission", label: "Mission", icon: "briefcase" },
-    { id: "review", label: "Review", icon: "fileText" },
-    { id: "passport", label: "Passport", icon: "award" },
-    { id: "report", label: "Report", icon: "trending" },
-  ];
-  return (
-    <header className="appnav">
-      <Link href="/">
-        <Logo size={26} />
-      </Link>
-      <nav className="appnav-links">
-        {items.map((it) => {
-          const href = `/${it.id}`;
-          const active = pathname === href;
-          return (
-            <Link key={it.id} href={href} className={`appnav-link ${active ? "active" : ""}`}>
-              <Icon name={it.icon} size={15} />
-              <span>{it.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="appnav-right">
-        <div className="appnav-streak"><Icon name="flame" size={14} style={{ color: "var(--c-amber)" }} /> 11</div>
-        <div className="avatar avatar-me">AR</div>
-      </div>
-    </header>
   );
 }
 

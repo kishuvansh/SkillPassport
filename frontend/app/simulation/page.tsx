@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Reveal,
   Badge,
@@ -12,6 +12,8 @@ import { workflowSteps } from "@/lib/data";
 
 export default function WorkflowPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const role = searchParams.get("role") || "Junior AI Engineer";
   const [current, setCurrent] = useState(-1);
   const [done, setDone] = useState(false);
 
@@ -81,7 +83,7 @@ export default function WorkflowPage() {
           <div style={{ textAlign: "center", marginTop: 40, height: 50 }}>
             {done && (
               <div style={{ animation: "bubbleIn .4s ease" }}>
-                <Button variant="primary" size="lg" icon="briefcase" onClick={() => router.push("/mission")}>Enter your workspace</Button>
+                <Button variant="primary" size="lg" icon="briefcase" onClick={() => router.push(`/mission?role=${encodeURIComponent(role)}`)}>Enter your workspace</Button>
               </div>
             )}
           </div>

@@ -34,7 +34,7 @@ function LandingNav() {
           <Link href="/careers">Careers</Link>
         </nav>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <Button variant="ghost" size="md" onClick={() => router.push("/dashboard")}>Sign in</Button>
+          <Button variant="ghost" size="md" onClick={() => router.push("/auth/login")}>Sign in</Button>
           <Button variant="primary" size="md" iconRight="arrowRight" onClick={() => router.push("/careers")}>Start free</Button>
         </div>
       </div>

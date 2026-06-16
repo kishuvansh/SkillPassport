@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Icon,
   Button,
@@ -106,10 +106,60 @@ function cannedReply(agent: Agent) {
   return map[agent.id] || "Thanks — keep going, you're on the right track.";
 }
 
-export default function MissionPage() {
+function MissionPageContent() {
   const router = useRouter();
-  useEffect(() => { window.scrollTo(0, 0); }, []);
+  const searchParams = useSearchParams();
+  const role = searchParams.get("role") || "Junior AI Engineer";
+  
   const [active, setActive] = useState<Agent | null>(null);
+  const [mission, setMission] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => { window.scrollTo(0, 0); }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/agent/workplace", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role })
+        });
+        if (!res.ok) throw new Error("Failed to generate mission");
+        const data = await res.json();
+        if (mounted) {
+          setMission(data);
+          setLoading(false);
+        }
+      } catch (err: any) {
+        if (mounted) {
+          setError(err.message);
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { mounted = false; };
+  }, [role]);
+
+  if (loading) {
+    return (
+      <div className="app-page" style={{ textAlign: "center", paddingTop: 120 }}>
+        <span className="spinner" />
+        <p style={{ color: "var(--muted)", marginTop: 16 }}>Generating a unique company and mission brief...</p>
+      </div>
+    );
+  }
+
+  if (error || !mission) {
+    return (
+      <div className="app-page" style={{ textAlign: "center", paddingTop: 120 }}>
+        <h1 style={{ fontSize: 24 }}>Failed to generate mission</h1>
+        <p style={{ color: "var(--muted)", marginTop: 8 }}>{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="app-page">
@@ -119,7 +169,7 @@ export default function MissionPage() {
             <div className="eyebrow">Mission Workspace</div>
             <h1 style={{ fontSize: "clamp(26px,3.6vw,38px)", marginTop: 12 }}>{mission.project}</h1>
           </div>
-          <Button variant="primary" icon="upload" onClick={() => router.push("/submission")}>Submit work</Button>
+          <Button variant="primary" icon="upload" onClick={() => router.push(`/submission?role=${encodeURIComponent(role)}`)}>Submit work</Button>
         </div>
       </Reveal>
 
@@ -141,7 +191,7 @@ export default function MissionPage() {
             <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid var(--border)" }}>
               <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: ".08em" }}>Your manager</div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
-                <div className="avatar" style={{ background: "color-mix(in oklch,var(--c-cyan) 18%,transparent)", color: "var(--c-cyan)", border: "1px solid color-mix(in oklch,var(--c-cyan) 35%,transparent)" }}>SC</div>
+                <div className="avatar" style={{ background: "color-mix(in oklch,var(--c-cyan) 18%,transparent)", color: "var(--c-cyan)", border: "1px solid color-mix(in oklch,var(--c-cyan) 35%,transparent)" }}>{mission.manager.split(" ").map((n: string) => n[0]).join("")}</div>
                 <div><div style={{ fontWeight: 600, fontSize: 14 }}>{mission.manager}</div><div style={{ fontSize: 11.5, color: "var(--muted)" }}>{mission.managerTitle}</div></div>
               </div>
             </div>
@@ -165,12 +215,12 @@ export default function MissionPage() {
         <Reveal delay={120}>
           <Card className="pad-lg" style={{ textAlign: "left" }}>
             <Badge color="var(--c-cyan)"><Icon name="briefcase" size={12} /> Project brief</Badge>
-            <h2 style={{ fontSize: 24, marginTop: 16 }}>Build a multilingual hospital support chatbot</h2>
+            <h2 style={{ fontSize: 24, marginTop: 16 }}>{mission.project}</h2>
             <p style={{ color: "var(--text-dim)", fontSize: 15.5, marginTop: 12, lineHeight: 1.6 }}>{mission.summary}</p>
 
             <div style={{ marginTop: 28 }}>
               <div className="mw-panel-title">Requirements</div>
-              {mission.requirements.map((r, i) => (
+              {mission.requirements.map((r: string, i: number) => (
                 <div className="req-item" key={i}>
                   <div className="req-check"><Icon name="check" size={13} /></div>
                   <span>{r}</span>
@@ -181,13 +231,13 @@ export default function MissionPage() {
             <div style={{ marginTop: 28 }}>
               <div className="mw-panel-title">Technical constraints</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {mission.constraints.map((c) => <span className="skill-chip" key={c} style={{ padding: "6px 11px", fontSize: 13 }}>{c}</span>)}
+                {mission.constraints.map((c: string) => <span className="skill-chip" key={c} style={{ padding: "6px 11px", fontSize: 13 }}>{c}</span>)}
               </div>
             </div>
 
             <div style={{ marginTop: 28 }}>
               <div className="mw-panel-title">Acceptance criteria</div>
-              {mission.acceptance.map((a, i) => (
+              {mission.acceptance.map((a: string, i: number) => (
                 <div className="req-item" key={i} style={{ borderColor: "var(--border)" }}>
                   <div className="req-check" style={{ color: "var(--c-amber)" }}><Icon name="target" size={12} /></div>
                   <span style={{ color: "var(--text-dim)" }}>{a}</span>
@@ -196,7 +246,7 @@ export default function MissionPage() {
             </div>
 
             <div style={{ display: "flex", gap: 10, marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
-              <Button variant="primary" icon="upload" onClick={() => router.push("/submission")}>Submit your work</Button>
+              <Button variant="primary" icon="upload" onClick={() => router.push(`/submission?role=${encodeURIComponent(role)}`)}>Submit your work</Button>
               <Button variant="secondary" icon="link">Open starter repo</Button>
             </div>
           </Card>
@@ -227,5 +277,14 @@ export default function MissionPage() {
 
       {active && <AgentChat agent={active} onClose={() => setActive(null)} />}
     </div>
+  );
+}
+
+import { Suspense } from "react";
+export default function MissionPage() {
+  return (
+    <Suspense fallback={<div className="app-page" style={{ minHeight: "60vh" }} />}>
+      <MissionPageContent />
+    </Suspense>
   );
 }

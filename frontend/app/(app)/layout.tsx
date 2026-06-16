@@ -1,4 +1,4 @@
-import { AppNav } from "@/components/ui/components";
+import { AppNav } from "@/components/AppNav";
 
 export default function AppLayout({
   children,

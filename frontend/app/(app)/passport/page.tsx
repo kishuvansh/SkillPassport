@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Reveal,
@@ -11,7 +11,13 @@ import {
   Button,
   CountUp,
 } from "@/components/ui/components";
-import { skills, Skill } from "@/lib/data";
+import { skills as fallbackSkills, Skill } from "@/lib/data";
+import { fetchLatestAssessment, fetchProfile } from "@/lib/api/client";
+import {
+  computePercentile,
+  formatPassportId,
+} from "@/lib/services/assessments";
+import type { Assessment, Profile } from "@/lib/database.types";
 
 interface SkillRowProps {
   s: Skill;
@@ -41,18 +47,57 @@ function SkillRow({ s, delay }: SkillRowProps) {
 
 export default function PassportPage() {
   const router = useRouter();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [qrData, setQrData] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
+  useEffect(() => {
+    fetchProfile()
+      .then(({ profile: p }) => setProfile(p))
+      .catch(() => setProfile(null));
+
+    fetchLatestAssessment()
+      .then((data) => {
+        setAssessment(data);
+        if (data?.verification_uuid) {
+          fetch(`/api/agent/passport?uuid=${data.verification_uuid}`)
+            .then((res) => res.json())
+            .then((qr) => setQrData(qr.qr_data_url))
+            .catch(() => setQrData(null));
+        }
+      })
+      .catch(() => setAssessment(null));
+  }, []);
+
+  const skills: Skill[] =
+    assessment?.review_data?.skills ??
+    fallbackSkills;
+
   const verified = skills.filter((s) => s.verified).length;
-  const avg = Math.round(skills.reduce((a, s) => a + s.value, 0) / skills.length);
+  const avg = skills.length
+    ? Math.round(skills.reduce((a, s) => a + s.value, 0) / skills.length)
+    : 0;
+  const percentile = assessment ? computePercentile(assessment) : 91;
+  const passportId = assessment
+    ? formatPassportId(assessment.verification_uuid)
+    : "CSAI-PENDING";
+
+  const sharePassport = async () => {
+    if (!assessment) return;
+    const url = `${window.location.origin}/passport/public/${assessment.verification_uuid}`;
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="app-page">
       <div className="dash-grid">
-        {/* Passport card */}
         <Reveal style={{ gridColumn: "span 5" }}>
           <div className="passport-card" style={{ position: "sticky", top: 96, textAlign: "left" }}>
             <div style={{ position: "absolute", top: -80, right: -60, width: 240, height: 240,
@@ -63,11 +108,13 @@ export default function PassportPage() {
                 <Badge color="var(--good)"><Icon name="shield" size={12} /> Verified by CareerSim AI</Badge>
               </div>
               <div className="mono" style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".12em", marginTop: 28 }}>Skill Passport</div>
-              <h2 style={{ fontSize: 28, marginTop: 8 }}>Aryan Sharma</h2>
-              <p style={{ color: "var(--text-dim)", fontSize: 14, marginTop: 4 }}>Junior AI Engineer · Track in progress</p>
+              <h2 style={{ fontSize: 28, marginTop: 8 }}>{profile?.full_name ?? "CareerSim Student"}</h2>
+              <p style={{ color: "var(--text-dim)", fontSize: 14, marginTop: 4 }}>
+                {assessment?.target_role ?? "Junior AI Engineer"} · Track in progress
+              </p>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1, background: "var(--border)", borderRadius: 12, overflow: "hidden", marginTop: 24, border: "1px solid var(--border)" }}>
-                {[{ n: avg, l: "Avg score" }, { n: verified, l: "Verified", suf: `/${skills.length}` }, { n: 91, l: "Percentile", suf: "th" }].map((x, i) => (
+                {[{ n: avg, l: "Avg score" }, { n: verified, l: "Verified", suf: `/${skills.length}` }, { n: percentile, l: "Percentile", suf: "th" }].map((x, i) => (
                   <div key={i} style={{ background: "var(--surface)", padding: "16px 12px", textAlign: "center" }}>
                     <div style={{ fontSize: 24, fontWeight: 800 }}><CountUp to={x.n} suffix={x.suf || ""} /></div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3, fontFamily: "var(--mono)" }}>{x.l}</div>
@@ -75,15 +122,23 @@ export default function PassportPage() {
                 ))}
               </div>
 
+              {qrData && (
+                <div style={{ marginTop: 20, textAlign: "center" }}>
+                  <img src={qrData} alt="Passport QR Code" style={{ borderRadius: 8, width: 150, height: 150, margin: "0 auto", border: "4px solid #fff" }} />
+                  <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>Scan to verify</p>
+                </div>
+              )}
+
               <div style={{ marginTop: 20, paddingTop: 18, borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>ID · CSAI-2026-0AR9</span>
-                <Button variant="outline" size="sm" icon="download">Share</Button>
+                <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>ID · {passportId}</span>
+                <Button variant="outline" size="sm" icon="download" onClick={sharePassport} disabled={!assessment}>
+                  {copied ? "Copied!" : "Share"}
+                </Button>
               </div>
             </div>
           </div>
         </Reveal>
 
-        {/* Skills list */}
         <Reveal delay={100} style={{ gridColumn: "span 7" }}>
           <Card className="pad-lg" style={{ textAlign: "left" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
@@ -95,6 +150,11 @@ export default function PassportPage() {
             <p style={{ color: "var(--text-dim)", fontSize: 14.5, marginBottom: 26, lineHeight: 1.55 }}>
               Every score is derived from your actual mission submission — not a quiz. Verified skills are ready to show employers.
             </p>
+            {!assessment && (
+              <p style={{ color: "var(--c-amber)", fontSize: 14, marginBottom: 20 }}>
+                Submit a mission to generate your verified passport.
+              </p>
+            )}
             {skills.map((s, i) => <SkillRow key={s.name} s={s} delay={i * 80} />)}
 
             <div style={{ display: "flex", gap: 10, marginTop: 24, paddingTop: 22, borderTop: "1px solid var(--border)" }}>

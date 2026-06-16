@@ -79,8 +79,8 @@ function iconFor(id: string) {
 export default function CareersPage() {
   const router = useRouter();
   useEffect(() => { window.scrollTo(0, 0); }, []);
-  const onSelect = () => {
-    router.push("/simulation");
+  const onSelect = (c: Career) => {
+    router.push(`/simulation?role=${encodeURIComponent(c.title)}`);
   };
   return (
     <div className="app-page">

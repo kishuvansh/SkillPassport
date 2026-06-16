@@ -1,23 +1,28 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Reveal,
-  Badge,
   Icon,
   Button,
   Card,
   ProgressBar,
 } from "@/components/ui/components";
 import { analysisStages } from "@/lib/data";
+import { submitAssessment } from "@/lib/api/client";
+import type { Assessment } from "@/lib/database.types";
 
-export default function SubmissionPage() {
+function SubmissionPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const role = searchParams.get("role") || "Junior AI Engineer";
   const [phase, setPhase] = useState<"form" | "analyzing">("form");
   const [stage, setStage] = useState(0);
-  const [github, setGithub] = useState("github.com/aryan/hospital-chatbot");
+  const [github, setGithub] = useState("");
   const [file, setFile] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const assessmentRef = useRef<Assessment | null>(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -25,13 +30,41 @@ export default function SubmissionPage() {
 
   useEffect(() => {
     if (phase !== "analyzing") return;
-    if (stage >= analysisStages.length) {
-      const t = setTimeout(() => router.push("/review"), 900);
+
+    if (stage >= analysisStages.length && assessmentRef.current) {
+      const t = setTimeout(
+        () => router.push(`/review?id=${assessmentRef.current!.id}`),
+        600
+      );
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setStage((s) => s + 1), 1100);
+
+    if (stage >= analysisStages.length) return;
+
+    const t = setTimeout(() => setStage((s) => s + 1), 900);
     return () => clearTimeout(t);
   }, [phase, stage, router]);
+
+  const handleSubmit = async () => {
+    setError(null);
+    setPhase("analyzing");
+    setStage(0);
+    assessmentRef.current = null;
+
+    try {
+      const assessment = await submitAssessment({
+        githubUrl: github || undefined,
+        fileName: file ?? undefined,
+        targetRole: role,
+      });
+      assessmentRef.current = assessment;
+      setStage((s) => (s >= analysisStages.length ? s : analysisStages.length));
+    } catch (err) {
+      setPhase("form");
+      setStage(0);
+      setError(err instanceof Error ? err.message : "Submission failed");
+    }
+  };
 
   if (phase === "analyzing") {
     return (
@@ -44,7 +77,7 @@ export default function SubmissionPage() {
               <Icon name="cpu" size={30} />
             </div>
             <h1 style={{ fontSize: 28 }}>Analyzing your submission</h1>
-            <p style={{ color: "var(--text-dim)", marginTop: 10 }}>Our agents are reviewing your repository. This takes a few seconds.</p>
+            <p style={{ color: "var(--text-dim)", marginTop: 10 }}>Our agents are reviewing your repository and running sandbox tests.</p>
           </div>
           {analysisStages.map((s, i) => {
             const st = stage > i ? "done" : stage === i ? "active" : "pending";
@@ -57,7 +90,7 @@ export default function SubmissionPage() {
             );
           })}
           <div style={{ marginTop: 20 }}>
-            <ProgressBar value={(stage / analysisStages.length) * 100} height={4} />
+            <ProgressBar value={(Math.min(stage, analysisStages.length) / analysisStages.length) * 100} height={4} />
           </div>
         </div>
       </div>
@@ -65,10 +98,10 @@ export default function SubmissionPage() {
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
+    if (e.target.files?.[0]) {
       setFile(e.target.files[0].name);
     } else {
-      setFile("project.zip");
+      setFile(null);
     }
   };
 
@@ -114,17 +147,38 @@ export default function SubmissionPage() {
               </div>
             </label>
 
+            {error && (
+              <p style={{ color: "var(--bad)", fontSize: 14, marginTop: 16 }}>{error}</p>
+            )}
+
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 24 }}>
-              <Button variant="primary" size="lg" icon="cpu" onClick={() => { setPhase("analyzing"); setStage(0); }}>Submit for AI review</Button>
+              <Button
+                variant="primary"
+                size="lg"
+                icon="cpu"
+                onClick={handleSubmit}
+                disabled={!github && !file}
+              >
+                Submit for AI review
+              </Button>
               <Button variant="ghost" size="lg" onClick={() => router.push("/mission")}>Back to mission</Button>
             </div>
           </Card>
           <p style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, marginTop: 18 }}>
             <Icon name="lock" size={13} style={{ verticalAlign: "-2px", marginRight: 5 }} />
-            Demo mode — no real upload occurs. Analysis is simulated.
+            Submissions are analyzed and stored securely in Supabase.
           </p>
         </div>
       </Reveal>
     </div>
+  );
+}
+
+import { Suspense } from "react";
+export default function SubmissionPage() {
+  return (
+    <Suspense fallback={<div className="app-page" style={{ minHeight: "60vh" }} />}>
+      <SubmissionPageContent />
+    </Suspense>
   );
 }
